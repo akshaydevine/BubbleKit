@@ -28,6 +28,10 @@ public final class BKConversationListViewModel: ObservableObject {
     public weak var eventDelegate: (any BKEventDelegate)?
     public weak var uiDelegate:    (any BKUIDelegate)?
 
+    /// ✅ Called with `true` when a chat detail is pushed, `false` when popped.
+    /// Host app binds this to hide/show its custom tab bar — no extra code needed per project.
+    public var onChatNavigationChanged: ((Bool) -> Void)?
+
     // MARK: - Derived
 
     public var displayedConversations: [BKConversation] {
@@ -199,6 +203,7 @@ public final class BKConversationListViewModel: ObservableObject {
             toggleConversationSelection(conversation)
             return
         }
+        onChatNavigationChanged?(true)  // ✅ chat opening
         eventDelegate?.bubbleKit(didHandle: BKConversationEvent(conversation: conversation, kind: .tap))
     }
 
@@ -266,7 +271,8 @@ public final class BKConversationListViewModel: ObservableObject {
     }
 
     func didTapPinned(_ entry: BKPinnedEntry) {
-        selectedPinnedEntry = entry                          // ← triggers NavigationLink
+        selectedPinnedEntry = entry
+        onChatNavigationChanged?(true)  // ✅ chat opening
         eventDelegate?.bubbleKit(didHandle: BKPinnedEvent(entry: entry, kind: .tap))
     }
     func showPinnedContext(for entry: BKPinnedEntry) {

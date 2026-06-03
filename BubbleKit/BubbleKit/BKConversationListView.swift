@@ -14,20 +14,26 @@ public struct BKConversationListView: View {
     private let title:             String
     public  var pinnedDisplayMode: BKPinnedDisplayMode = .horizontalScroll
 
+    /// ✅ Optional closure — bind this to hide/show your custom tab bar.
+    /// Called with `true` when chat detail opens, `false` when it closes.
+    public var onChatNavigationChanged: ((Bool) -> Void)? = nil
+
     public init(
         title:             String                 = "Messages",
         theme:             BubbleKitTheme         = .default,
         dataSource:        any BKDataSource,
         eventDelegate:     (any BKEventDelegate)? = nil,
         uiDelegate:        (any BKUIDelegate)?    = nil,
-        pinnedDisplayMode: BKPinnedDisplayMode    = .horizontalScroll
+        pinnedDisplayMode: BKPinnedDisplayMode    = .horizontalScroll,
+        onChatNavigationChanged: ((Bool) -> Void)? = nil  // ✅ new
     ) {
-        self.title             = title
-        self.theme             = theme
-        self.dataSource        = dataSource
-        self.eventDelegate     = eventDelegate
-        self.uiDelegate        = uiDelegate
-        self.pinnedDisplayMode = pinnedDisplayMode
+        self.title                   = title
+        self.theme                   = theme
+        self.dataSource              = dataSource
+        self.eventDelegate           = eventDelegate
+        self.uiDelegate              = uiDelegate
+        self.pinnedDisplayMode       = pinnedDisplayMode
+        self.onChatNavigationChanged = onChatNavigationChanged
     }
 
     public var body: some View {
@@ -44,15 +50,16 @@ public struct BKConversationListView: View {
                         )
                     }
 
+                    // ✅ Select toolbar sits at the TOP, right below the nav bar
+                    if viewModel.isSelectMessagesMode {
+                        selectMessagesToolbar
+                    }
+
                     if !viewModel.pinnedEntries.isEmpty && !viewModel.isSearching {
                         BKPinnedRowView(viewModel: viewModel, displayMode: pinnedDisplayMode)
                     }
 
                     conversationList
-                }
-
-                if viewModel.isSelectMessagesMode {
-                    selectMessagesToolbar
                 }
 
                 if viewModel.showEditMenu {
@@ -80,7 +87,10 @@ public struct BKConversationListView: View {
             // ── Navigation destinations (INSIDE NavigationStack) ──────────
             .navigationDestination(isPresented: Binding(
                 get: { viewModel.selectedConversation != nil },
-                set: { if !$0 { viewModel.selectedConversation = nil } }
+                set: { if !$0 {
+                    viewModel.selectedConversation = nil
+                    viewModel.onChatNavigationChanged?(false)  // ✅ chat closed
+                }}
             )) {
                 if let conv = viewModel.selectedConversation,
                    let dest = viewModel.destination(for: conv) {
@@ -89,7 +99,10 @@ public struct BKConversationListView: View {
             }
             .navigationDestination(isPresented: Binding(
                 get: { viewModel.selectedPinnedEntry != nil },
-                set: { if !$0 { viewModel.selectedPinnedEntry = nil } }
+                set: { if !$0 {
+                    viewModel.selectedPinnedEntry = nil
+                    viewModel.onChatNavigationChanged?(false)  // ✅ chat closed
+                }}
             )) {
                 if let entry = viewModel.selectedPinnedEntry,
                    let dest = viewModel.pinnedDestination(for: entry) {
@@ -179,13 +192,6 @@ public struct BKConversationListView: View {
             }
             .listStyle(.plain)
             .background(theme.colors.background)
-            // When select-messages toolbar is visible (~83pt), inset the list
-            // bottom so the last row can scroll fully above the Delete button.
-            .safeAreaInset(edge: .bottom) {
-                if viewModel.isSelectMessagesMode {
-                    Color.clear.frame(height: 83)
-                }
-            }
         }
     }
 
@@ -265,41 +271,44 @@ public struct BKConversationListView: View {
         .animation(.spring(response: 0.2), value: selected)
     }
 
-    // MARK: - Select Messages bottom toolbar
+    // MARK: - Select Messages top toolbar
 
     private var selectMessagesToolbar: some View {
-        VStack {
-            Spacer()
-            VStack(spacing: 0) {
-                Divider()
-                HStack {
-                    // Select All / Deselect All
-                    Button {
-                        withAnimation(.spring(response: 0.2)) {
-                            viewModel.isAllSelected ? viewModel.deselectAll() : viewModel.selectAll()
-                        }
-                    } label: {
-                        Text(viewModel.isAllSelected ? "Deselect All" : "Select All")
-                            .font(.system(size: 17))
-                            .foregroundColor(theme.colors.appleBlue)
+        VStack(spacing: 0) {
+            HStack {
+                // Select All / Deselect All
+                Button {
+                    withAnimation(.spring(response: 0.2)) {
+                        viewModel.isAllSelected ? viewModel.deselectAll() : viewModel.selectAll()
                     }
-                    .padding()
-
-                    Spacer()
-
-                    // Delete
-                    Button(role: .destructive) {
-                        viewModel.deleteSelectedConversations()
-                    } label: {
-                        Label("Delete", systemImage: "trash").font(.system(size: 17))
-                    }
-                    .disabled(viewModel.selectedConversationIDs.isEmpty)
-                    .padding()
+                } label: {
+                    Text(viewModel.isAllSelected ? "Deselect All" : "Select All")
+                        .font(.system(size: 15))
+                        .foregroundColor(theme.colors.appleBlue)
                 }
-                .background(theme.colors.background)
+
+                Spacer()
+
+                // Delete
+                Button(role: .destructive) {
+                    viewModel.deleteSelectedConversations()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash")
+                        Text("Delete")
+                    }
+                    .font(.system(size: 15))
+                }
+                .disabled(viewModel.selectedConversationIDs.isEmpty)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(theme.colors.background)
+
+            Divider()
         }
-        .ignoresSafeArea(edges: .bottom)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isSelectMessagesMode)
     }
 
     // MARK: - Toolbar items
@@ -501,9 +510,10 @@ public struct BKConversationListView: View {
     // MARK: - Wire
 
     private func wire() {
-        viewModel.dataSource    = dataSource
-        viewModel.eventDelegate = eventDelegate
-        viewModel.uiDelegate    = uiDelegate
+        viewModel.dataSource             = dataSource
+        viewModel.eventDelegate          = eventDelegate
+        viewModel.uiDelegate             = uiDelegate
+        viewModel.onChatNavigationChanged = onChatNavigationChanged  // ✅ wire callback
         viewModel.reload()
     }
 }

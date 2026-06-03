@@ -26,15 +26,17 @@ public enum BubbleKit {
         title:             String              = "Messages",
         theme:             BubbleKitTheme      = .default,
         pinnedDisplayMode: BKPinnedDisplayMode = .horizontalScroll,
-        delegate:          D
+        delegate:          D,
+        onChatNavigationChanged: ((Bool) -> Void)? = nil  // ✅ new
     ) -> some View {
         BKConversationListView(
-            title:             title,
-            theme:             theme,
-            dataSource:        delegate,
-            eventDelegate:     delegate,
-            uiDelegate:        delegate,
-            pinnedDisplayMode: pinnedDisplayMode
+            title:                   title,
+            theme:                   theme,
+            dataSource:              delegate,
+            eventDelegate:           delegate,
+            uiDelegate:              delegate,
+            pinnedDisplayMode:       pinnedDisplayMode,
+            onChatNavigationChanged: onChatNavigationChanged  // ✅ pass through
         )
     }
 
