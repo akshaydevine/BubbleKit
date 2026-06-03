@@ -23,7 +23,7 @@ public final class BKConversationListViewModel: ObservableObject {
     @Published public var isEditPinsMode:          Bool         = false
 
     // MARK: - Delegates
-
+    @Published public var selectedPinnedEntry: BKPinnedEntry? = nil
     public weak var dataSource:    (any BKDataSource)?
     public weak var eventDelegate: (any BKEventDelegate)?
     public weak var uiDelegate:    (any BKUIDelegate)?
@@ -266,13 +266,16 @@ public final class BKConversationListViewModel: ObservableObject {
     }
 
     func didTapPinned(_ entry: BKPinnedEntry) {
+        selectedPinnedEntry = entry                          // ← triggers NavigationLink
         eventDelegate?.bubbleKit(didHandle: BKPinnedEvent(entry: entry, kind: .tap))
     }
-
     func showPinnedContext(for entry: BKPinnedEntry) {
         pinnedContextEntry = entry
     }
-
+    func pinnedDestination(for entry: BKPinnedEntry) -> AnyView? {
+        guard let conv = entry.conversation else { return nil }
+        return eventDelegate?.bubbleKit(destinationFor: conv)
+    }
     func didLongPressPinned(_ entry: BKPinnedEntry) {
         eventDelegate?.bubbleKit(didHandle: BKPinnedEvent(entry: entry, kind: .longPress))
     }

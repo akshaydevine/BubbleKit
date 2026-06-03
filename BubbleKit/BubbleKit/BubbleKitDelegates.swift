@@ -104,6 +104,14 @@ public typealias BKFullDelegate = BKDataSource & BKEventDelegate & BKUIDelegate
 
 public final class DefaultBubbleKitDelegate: BKFullDelegate {
 
+    // ✅ Default demo user — override in your own delegate with real auth user
+    private let currentUser = BKContact(
+        id:       "me",
+        name:     "You",
+        avatar:   .initials("ME", .white, Color(hex: "#007AFF")),
+        isOnline: true
+    )
+
     public init() {}
 
     public func conversations(for filter: BKConversationFilter) -> [BKConversation] {
@@ -112,6 +120,24 @@ public final class DefaultBubbleKitDelegate: BKFullDelegate {
     public func pinnedEntries() -> [BKPinnedEntry]? {
         BKSampleData.pinnedEntries
     }
+
+    /// ✅ Each conversation opens with its own BKChatViewModel + currentUser
+    public func bubbleKit(destinationFor conversation: BKConversation) -> AnyView? {
+        let chatVM = BKChatViewModel(
+            chatInfo: BKChatInfo(
+                title:    conversation.displayName,
+                subtitle: conversation.participants.count > 1
+                              ? "\(conversation.participants.count) members"
+                              : nil,
+                avatar:   conversation.participants.first?.avatar ?? .placeholder,
+                isGroup:  conversation.participants.count > 1
+            ),
+            currentUser: currentUser,   // ✅ real sender for outgoing messages
+            messages:    []             // ✅ replace with real per-chat messages
+        )
+        return AnyView(BKChatView(viewModel: chatVM))
+    }
+
     public func bubbleKit(didHandle event: BKConversationEvent) {
         print("[BubbleKit] conversation event → \(event.conversation.displayName)")
     }

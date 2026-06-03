@@ -137,8 +137,16 @@ public enum BKSampleData {
 
     public static let pinnedEntries: [BKPinnedEntry] = records.compactMap { r in
         guard r.isPinnedEntry else { return nil }
+        // Use existing conversation or create a stub so the chat screen can open
+        let conv = conversations.first { $0.id == r.id } ?? BKConversation(
+            id:              r.id,
+            participants:    [contact(r.id)],
+            lastMessage:     "",
+            lastMessageTime: Date()
+        )
         return BKPinnedEntry(
             contact:      contact(r.id),
+            conversation: conv,
             hasUnread:    r.pinnedHasUnread,
             unreadCount:  r.pinnedUnreadCount,
             status:       r.pinnedStatus

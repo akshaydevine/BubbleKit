@@ -5,6 +5,7 @@ import SwiftUI
 public struct BKConversationListView: View {
 
     @StateObject private var viewModel = BKConversationListViewModel()
+    @State private var showCompose: Bool = false
 
     private let theme:             BubbleKitTheme
     private let dataSource:        any BKDataSource
@@ -30,7 +31,7 @@ public struct BKConversationListView: View {
     }
 
     public var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 theme.colors.background.ignoresSafeArea()
 
@@ -70,26 +71,45 @@ public struct BKConversationListView: View {
             .overlay(alignment: .top) {
                 if viewModel.showEditMenu {
                     editDropdown
-//                        .padding(.top, 56)
                         .padding(.leading, 16)
                         .zIndex(200)
                         .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .opacity))
                         .animation(.spring(response: 0.22, dampingFraction: 0.85), value: viewModel.showEditMenu)
                 }
             }
+            // ── Navigation destinations (INSIDE NavigationStack) ──────────
+            .navigationDestination(isPresented: Binding(
+                get: { viewModel.selectedConversation != nil },
+                set: { if !$0 { viewModel.selectedConversation = nil } }
+            )) {
+                if let conv = viewModel.selectedConversation,
+                   let dest = viewModel.destination(for: conv) {
+                    dest
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { viewModel.selectedPinnedEntry != nil },
+                set: { if !$0 { viewModel.selectedPinnedEntry = nil } }
+            )) {
+                if let entry = viewModel.selectedPinnedEntry,
+                   let dest = viewModel.pinnedDestination(for: entry) {
+                    dest
+                }
+            }
+            .overlay {
+                if viewModel.contextConversation != nil {
+                    contextPopoverOverlay
+                }
+            }
+            .overlay {
+                if viewModel.pinnedContextEntry != nil {
+                    pinnedContextOverlay
+                }
+            }
         }
+        // ── Applied outside NavigationStack ───────────────────────────────
         .bubbleKitTheme(theme)
         .onAppear { wire() }
-        .overlay {
-            if viewModel.contextConversation != nil {
-                contextPopoverOverlay
-            }
-        }
-        .overlay {
-            if viewModel.pinnedContextEntry != nil {
-                pinnedContextOverlay
-            }
-        }
     }
 
     // MARK: - Conversation List
@@ -107,6 +127,20 @@ public struct BKConversationListView: View {
             emptyState
         } else {
             List {
+//                if let entry = viewModel.selectedPinnedEntry,
+//                   let dest = viewModel.pinnedDestination(for: entry) {
+//                    NavigationLink(
+//                        destination: dest,
+//                        isActive: Binding(
+//                            get: { viewModel.selectedPinnedEntry?.id == entry.id },
+//                            set: { if !$0 { viewModel.selectedPinnedEntry = nil } }
+//                        )
+//                    ) { EmptyView() }
+//                        .frame(width: 0, height: 0)
+//                        .hidden()
+//                        .listRowInsets(EdgeInsets())
+//                        .listRowSeparator(.hidden)
+//                }
                 ForEach(items) { conversation in
                     conversationRow(conversation)
                         .listRowInsets(EdgeInsets())
@@ -202,28 +236,15 @@ public struct BKConversationListView: View {
     private func normalRow(_ conversation: BKConversation) -> some View {
         let destination = viewModel.destination(for: conversation)
 
-        return ZStack {
-            if let dest = destination {
-                NavigationLink(
-                    destination: dest,
-                    isActive: Binding(
-                        get: { viewModel.selectedConversation?.id == conversation.id },
-                        set: { if !$0 { viewModel.selectedConversation = nil } }
-                    )
-                ) { EmptyView() }
-                .frame(width: 0, height: 0)
-                .hidden()
+        return BKConversationRowView(conversation: conversation, viewModel: viewModel)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if destination != nil { viewModel.selectedConversation = conversation }
+                viewModel.didTap(conversation)
             }
-            BKConversationRowView(conversation: conversation, viewModel: viewModel)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if destination != nil { viewModel.selectedConversation = conversation }
-            viewModel.didTap(conversation)
-        }
-        .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 10) {
-            viewModel.didLongPress(conversation)
-        }
+            .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 10) {
+                viewModel.didLongPress(conversation)
+            }
     }
 
     // MARK: - Checkmark bubble
@@ -315,8 +336,23 @@ public struct BKConversationListView: View {
                     Button {} label: {
                         Image(systemName: "person.2.circle").foregroundColor(theme.colors.appleBlue)
                     }
-                    Button { viewModel.didTapCompose() } label: {
+                    Button {
+                        showCompose = true
+                        viewModel.didTapCompose()
+                    } label: {
                         Image(systemName: "square.and.pencil").foregroundColor(theme.colors.appleBlue)
+                    }
+                    .sheet(isPresented: $showCompose) {
+                        if let contacts = viewModel.dataSource?.conversations(for: .all)
+                            .flatMap({ $0.participants }) {
+                            BKComposeView(
+                                contacts: Array(Set(contacts)),
+                                onSend: { recipients, firstMessage in
+                                    showCompose = false
+                                    viewModel.eventDelegate?.bubbleKitDidTapCompose()
+                                }
+                            )
+                        }
                     }
                 }
             }

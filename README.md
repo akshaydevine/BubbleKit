@@ -34,7 +34,7 @@ A plug-and-play SwiftUI conversation list UI kit — pixel-matched to the iOS Me
 
 ## Requirements
 
-- iOS 16.0+
+- iOS 15.0+
 - Swift 5.9+
 - Xcode 15+
 
