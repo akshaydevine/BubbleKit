@@ -14,8 +14,11 @@ public struct BKConversationListView: View {
     private let title:             String
     public  var pinnedDisplayMode: BKPinnedDisplayMode = .horizontalScroll
 
+    /// ✅ Extra bottom inset so the last row scrolls above the host app's tab bar.
+    /// Pass the tab bar height from the host app. Defaults to 0.
+    public var bottomInset: CGFloat = 0
+
     /// ✅ Optional closure — bind this to hide/show your custom tab bar.
-    /// Called with `true` when chat detail opens, `false` when it closes.
     public var onChatNavigationChanged: ((Bool) -> Void)? = nil
 
     public init(
@@ -25,7 +28,8 @@ public struct BKConversationListView: View {
         eventDelegate:     (any BKEventDelegate)? = nil,
         uiDelegate:        (any BKUIDelegate)?    = nil,
         pinnedDisplayMode: BKPinnedDisplayMode    = .horizontalScroll,
-        onChatNavigationChanged: ((Bool) -> Void)? = nil  // ✅ new
+        bottomInset:       CGFloat                = 0,          // ✅ new
+        onChatNavigationChanged: ((Bool) -> Void)? = nil
     ) {
         self.title                   = title
         self.theme                   = theme
@@ -33,6 +37,7 @@ public struct BKConversationListView: View {
         self.eventDelegate           = eventDelegate
         self.uiDelegate              = uiDelegate
         self.pinnedDisplayMode       = pinnedDisplayMode
+        self.bottomInset             = bottomInset
         self.onChatNavigationChanged = onChatNavigationChanged
     }
 
@@ -192,6 +197,9 @@ public struct BKConversationListView: View {
             }
             .listStyle(.plain)
             .background(theme.colors.background)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: bottomInset)
+            }
         }
     }
 
