@@ -16,12 +16,7 @@ let package = Package(
     targets: [
         .target(
             name: "BubbleKit",
-            path: "Sources/BubbleKit"
-        ),
-        .testTarget(
-            name: "BubbleKitTests",
-            dependencies: ["BubbleKit"],
-            path: "Tests/BubbleKitTests"
-        ),
+            path: "BubbleKit/BubbleKit"
+        )
     ]
 )
