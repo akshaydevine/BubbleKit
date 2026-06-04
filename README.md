@@ -1,6 +1,10 @@
 # BubbleKit
 
-A plug-and-play SwiftUI conversation list UI kit — pixel-matched to the iOS Messages design. Drop it into any app via Swift Package Manager and get a fully functional chat list with pinned contacts, search, filters, swipe actions, and deep customisation hooks.
+A plug-and-play SwiftUI conversation list **and** chat UI kit — pixel-matched to the iOS Messages design. Drop it into any app via Swift Package Manager and get a fully functional chat list with pinned contacts, search, filters, swipe actions, deep customisation hooks, and a complete per-conversation chat screen with attachments, reactions, replies, voice notes, and more.
+
+<p align="center">
+  <img src="assets/image1.png" width="280" alt="BubbleKit Preview" />
+</p>
 
 ---
 
@@ -20,6 +24,20 @@ A plug-and-play SwiftUI conversation list UI kit — pixel-matched to the iOS Me
   - [Display Modes](#display-modes)
   - [Pin Status Content](#pin-status-content)
   - [Edit Pins Mode](#edit-pins-mode)
+- [Chat Screen](#chat-screen)
+  - [Basic Setup](#basic-setup)
+  - [Loading & Appending Messages](#loading--appending-messages)
+  - [Attachments](#attachments)
+  - [Reactions](#reactions)
+  - [Reply to a Message](#reply-to-a-message)
+  - [Edit a Message](#edit-a-message)
+  - [Delete a Message](#delete-a-message)
+  - [Pin Messages](#pin-messages)
+  - [Voice Notes](#voice-notes)
+  - [Fullscreen Image Gallery](#fullscreen-image-gallery)
+  - [Reply Navigation & Highlight](#reply-navigation--highlight)
+  - [Chat Event Delegate](#chat-event-delegate)
+  - [Compose Screen](#compose-screen)
 - [Theming](#theming)
   - [Built-in Themes](#built-in-themes)
   - [Custom Theme](#custom-theme)
@@ -47,7 +65,7 @@ A plug-and-play SwiftUI conversation list UI kit — pixel-matched to the iOS Me
 1. In Xcode open **File → Add Package Dependencies**
 2. Enter the repository URL:
    ```
-   https://github.com/your-org/BubbleKit
+   https://github.com/akshaydevine/BubbleKit/
    ```
 3. Select **Up to Next Major Version** starting from `1.0.0`
 4. Click **Add Package**
@@ -82,6 +100,10 @@ struct ContentView: View {
     }
 }
 ```
+
+<p align="center">
+  <img src="assets/image2.png" width="280" alt="Conversation List" />
+</p>
 
 ### Production usage with your own delegate:
 
@@ -152,6 +174,10 @@ func bubbleKit(didChangeFilter filter: BKConversationFilter) {
 | Leading (right swipe) | **Pin / Unpin** (blue, full-swipe) |
 
 Swipe actions are automatically hidden when **Select Messages** mode is active.
+
+<p align="center">
+  <img src="assets/image3.png" width="280" alt="Swipe Actions" />
+</p>
 
 Handle events via the event delegate:
 
@@ -255,6 +281,10 @@ BubbleKit.makeConversationList(pinnedDisplayMode: .grid, delegate: delegate)
 | `.horizontalScroll` | Unlimited | Scrolls horizontally |
 | `.grid` | 9 per page | Paginates horizontally |
 
+<p align="center">
+  <img src="assets/image4.png" width="280" alt="Pinned Contacts — Horizontal Scroll vs Grid" />
+</p>
+
 ### Pin Status Content
 
 Each pinned entry can show a status above its avatar. Three types are supported:
@@ -289,13 +319,271 @@ Handle removal:
 ```swift
 func bubbleKit(didHandle event: BKPinnedEvent) {
     switch event.kind {
-    case .remove:           pins.removeAll { $0.id == event.entry.id }
-    case .add:              pins.append(event.entry)
+    case .remove:               pins.removeAll { $0.id == event.entry.id }
+    case .add:                  pins.append(event.entry)
     case .reorder(let f, let t): pins.move(fromOffsets: [f], toOffset: t)
     default: break
     }
 }
 ```
+
+---
+
+## Chat Screen
+
+`BKChatView` is a full-featured per-conversation chat screen. It is driven entirely by `BKChatViewModel` — create one per conversation and pass it in.
+
+### Basic Setup
+
+```swift
+import BubbleKit
+
+// 1. Create the view model
+let chatVM = BKChatViewModel(
+    chatInfo: BKChatInfo(
+        title:    "Leia Organa",
+        subtitle: "Active now",
+        avatar:   .url(URL(string: "https://...")!),
+        isGroup:  false
+    ),
+    currentUser: BKContact(
+        id:     "me",
+        name:   "You",
+        avatar: .initials("ME", .white, Color(hex: "#007AFF"))
+    ),
+    messages: []   // pass initial messages from your API/DB here
+)
+
+// 2. Present the view inside a NavigationStack
+NavigationStack {
+    BKChatView(viewModel: chatVM)
+}
+```
+
+<p align="center">
+  <img src="assets/image5.png" width="280" alt="Chat Screen" />
+</p>
+
+> **Important:** `currentUser` is the logged-in user. Every message the user sends is stamped with this contact as the sender and rendered as an outgoing (right-aligned, blue) bubble.
+
+### Loading & Appending Messages
+
+```swift
+// Replace all messages at once (e.g. after an API fetch)
+chatVM.load(messages: myMessages)
+
+// Append a single incoming message in real-time (e.g. from a WebSocket)
+let incoming = BKMessage(
+    sender:      otherContact,
+    text:        "Hey, what's up?",
+    sentAt:      Date(),
+    isOutgoing:  false,
+    readReceipt: .delivered
+)
+chatVM.appendMessage(incoming)
+```
+
+`load()` replaces all messages and scrolls to the bottom. `appendMessage()` adds one message, scrolls to it, and fires `BKChatEventDelegate.bkChat(didSend:)`.
+
+### Attachments
+
+`BKMessage` supports five attachment types. Pass them in the `attachments` array:
+
+```swift
+// Image
+BKMessage(sender: me, attachments: [.image(imageURL)], isOutgoing: true)
+
+// Video with optional thumbnail
+BKMessage(sender: me, attachments: [.video(videoURL, thumbnail: thumbURL)], isOutgoing: true)
+
+// Document (PDF, zip, docx, etc.)
+BKMessage(sender: me, attachments: [.document(fileURL, filename: "report.pdf")], isOutgoing: true)
+
+// Voice note
+BKMessage(sender: me, attachments: [.audio(audioURL, duration: 12)], isOutgoing: true)
+
+// Location — opens Apple Maps on tap
+BKMessage(
+    sender:      me,
+    attachments: [.location(mapsURL, latitude: 37.78, longitude: -122.41, address: "San Francisco, CA")],
+    isOutgoing:  true
+)
+```
+
+Multiple attachments on one message are displayed in an auto-layout grid (1 image → full width, 2 → side by side, 3+ → mosaic).
+
+The **`+` button** in the input bar opens a Telegram-style attachment panel with four built-in pickers:
+
+| Icon | Label | System picker used |
+|------|-------|--------------------|
+| 🟢 Photos | Photo library | `PhotosPickerItem` |
+| 🟠 Camera | Camera roll | `UIImagePickerController` |
+| 🔵 File | Document picker | `UIDocumentPickerViewController` |
+| 🔴 Location | Current GPS location | `CLLocationManager` |
+
+### Reactions
+
+Long-pressing any bubble opens a context overlay with a quick-emoji bar (`😂 👍 ❤️ 👎 😮 +`). Tapping an emoji toggles your reaction on the message.
+
+The **`+`** button opens a full emoji picker sheet with 700+ emoji across 7 categories and a live search bar.
+
+```swift
+// React programmatically
+chatVM.react(emoji: "👍", to: message)
+```
+
+Reactions are displayed above the bubble. Tapping your own reaction removes it; tapping an existing reaction from someone else increments its count.
+
+### Reply to a Message
+
+Long-press a bubble → tap **Reply**. A reply banner appears above the input bar showing the quoted sender and preview text. The sent message stores a `BKMessageReply` reference.
+
+Tapping the **reply quote** inside any bubble scrolls directly to the original message and flashes a yellow highlight.
+
+```swift
+// Reply programmatically
+chatVM.reply(to: message)
+
+// Cancel a pending reply
+chatVM.cancelReply()
+```
+
+### Edit a Message
+
+Long-press an outgoing bubble → tap **Edit Message**. The input bar pre-fills with the current text and shows a green confirm button. Submitting updates the bubble in place.
+
+```swift
+// Start editing programmatically
+chatVM.startEdit(message: message)
+
+// Commit the edit
+chatVM.commitEdit()
+
+// Cancel without saving
+chatVM.cancelEdit()
+```
+
+### Delete a Message
+
+Long-press any bubble → tap **Delete Message**. The bubble is replaced with a *"Message deleted"* placeholder — the message is never removed from the list so reply quotes and thread counts remain consistent.
+
+```swift
+chatVM.deleteMessage(message)
+```
+
+### Pin Messages
+
+Long-press any bubble → tap **Pin to conversation**. A pinned message bar appears at the top of the chat. Tapping the bar scrolls to and highlights that message. Tap the × on the bar or long-press again and choose **Unpin** to dismiss.
+
+```swift
+chatVM.togglePin(message: message)
+chatVM.dismissPinnedBar()
+```
+
+### Voice Notes
+
+Tap the **microphone** button in the input bar (visible when the text field is empty) to start recording. The input bar transforms into a Telegram-style recording bar with:
+
+- Animated waveform
+- Live timer
+- **Trash** button to cancel
+- **Lock** indicator (slide up to lock recording hands-free)
+- **Send** button to send the voice note immediately
+
+Sent voice notes render as a playable audio bubble with a play/pause button and a progress slider.
+
+### Fullscreen Image Gallery
+
+Tapping any image bubble opens a fullscreen swipeable gallery with:
+
+- Pinch-to-zoom and double-tap-to-zoom per image
+- Page indicator when multiple images are present
+- Share button (top-right)
+- Close button
+
+```swift
+// Open programmatically
+chatVM.openImage(url)
+chatVM.openImages([url1, url2, url3], startIndex: 1)
+```
+
+### Reply Navigation & Highlight
+
+Tapping the reply quote strip inside any bubble navigates back to the original message, scrolls it into view, and flashes a yellow highlight for ~1.4 seconds — identical to WhatsApp behaviour.
+
+This works correctly even when:
+- The same reply is tapped twice in a row (state is always reset before each navigation)
+- The original message is far up the scroll view (highlight waits 0.55 s for scroll to finish)
+- Multiple reply banners are tapped quickly (a token system cancels stale highlight timers)
+
+```swift
+// Trigger programmatically (e.g. from a search result)
+chatVM.scrollToAndHighlight(messageID: "msg-id-123")
+```
+
+### Chat Event Delegate
+
+Conform to `BKChatEventDelegate` to receive chat-level events:
+
+```swift
+final class MyChatDelegate: BKChatEventDelegate {
+
+    func bkChat(didSend message: BKMessage) {
+        // Upload to your backend / WebSocket
+        api.send(message)
+    }
+
+    func bkChat(didTapAttachment attachment: BKAttachment, in message: BKMessage) {
+        // Handle document open, video play, location tap, etc.
+        switch attachment {
+        case .document(let url, let filename): openDocument(url, name: filename)
+        case .location(let url, _, _, _):      UIApplication.shared.open(url)
+        default: break
+        }
+    }
+
+    func bkChat(didLongPress message: BKMessage) {
+        // Called when long-press context menu is triggered
+        analytics.track("message_long_press")
+    }
+}
+
+// Attach to the view model
+chatVM.eventDelegate = myChatDelegate
+```
+
+All three methods have default no-op implementations so you only implement what you need.
+
+### Compose Screen
+
+The **New Message** compose screen lets users pick recipients before starting a conversation.
+
+```swift
+BKComposeView(
+    contacts: myContacts   // [BKContact] to search from
+) { recipients, firstMessage in
+    // recipients: [BKContact] — who the user selected
+    // firstMessage: String?   — optional text typed before tapping Send
+    let conversation = createConversation(with: recipients)
+    navigate(to: BKChatView(viewModel: chatVM(for: conversation)))
+} onCancel: {
+    dismiss()
+}
+```
+
+Or via the `BubbleKit` namespace:
+
+```swift
+BubbleKit.makeComposeView(contacts: myContacts) { recipients, firstMessage in
+    // handle send
+}
+```
+
+Features:
+- Recipient chips with `×` remove button
+- Live contact search as you type
+- `+` button to open a full contact picker sheet
+- Input bar with Send button (disabled until at least one recipient is chosen)
 
 ---
 
@@ -308,14 +596,25 @@ BubbleKit.makeConversationList(theme: .default, delegate: delegate)  // light
 BubbleKit.makeConversationList(theme: .dark,    delegate: delegate)  // dark
 ```
 
+The same theme flows automatically into `BKChatView` when opened from the conversation list. To apply a theme directly to a standalone chat screen:
+
+```swift
+BKChatView(viewModel: chatVM)
+    .bubbleKitTheme(.dark)
+```
+
+<p align="center">
+  <img src="assets/image6.png" width="560" alt="Light and Dark Themes" />
+</p>
+
 ### Custom Theme
 
 All theme tokens are public structs — override only what you need:
 
 ```swift
 var myColors = BubbleKitColors.default
-myColors.notifyPurple   = Color(hex: "#FF2D55")   // red badge
-myColors.appleBlue      = Color(hex: "#34C759")   // green accent
+myColors.notifyPurple     = Color(hex: "#FF2D55")   // red badge
+myColors.appleBlue        = Color(hex: "#34C759")   // green accent
 myColors.pinnedBackground = Color(hex: "#F9F9F9")
 
 var myLayout = BubbleKitLayout.default
@@ -342,7 +641,7 @@ BubbleKit.makeConversationList(theme: myTheme, delegate: delegate)
 |-------|----------------|----------------|-------|
 | `appleBlack` | `#000000` | `#FFFFFF` | Names, primary text |
 | `appleGrey` | `#8E8E93` | `#8E8E93` | Timestamps, previews |
-| `appleBlue` | `#007AFF` | `#0A84FF` | Links, accents |
+| `appleBlue` | `#007AFF` | `#0A84FF` | Links, accents, outgoing bubble |
 | `notifyPurple` | `#AF52DE` | `#BF5AF2` | Unread badge |
 | `messageSentNew` | `#007AFF` | `#0A84FF` | Unread dot |
 | `background` | `#FFFFFF` | `#000000` | Screen background |
@@ -421,7 +720,13 @@ Provide a navigation destination for conversation tap:
 
 ```swift
 func bubbleKit(destinationFor conversation: BKConversation) -> AnyView? {
-    AnyView(ChatView(conversation: conversation))
+    let chatVM = BKChatViewModel(
+        chatInfo:    BKChatInfo(title: conversation.displayName,
+                                avatar: conversation.participants.first?.avatar ?? .placeholder),
+        currentUser: myLoggedInUser,
+        messages:    myMessages(for: conversation.id)
+    )
+    return AnyView(BKChatView(viewModel: chatVM))
 }
 ```
 
@@ -495,6 +800,64 @@ BKContact(
 
 Avatar types: `.url(URL)` · `.image(String)` · `.systemSymbol(String)` · `.initials(String, Color, Color)` · `.placeholder`
 
+### BKMessage
+
+```swift
+BKMessage(
+    id:           UUID().uuidString,   // auto-generated if omitted
+    sender:       contact,
+    text:         "Hello!",
+    attachments:  [],                  // [BKAttachment]
+    sentAt:       Date(),
+    isOutgoing:   true,
+    readReceipt:  .sent,               // .sent · .delivered · .read
+    replyTo:      nil,                 // BKMessageReply?
+    isTranslated: false,
+    reactions:    [],                  // [BKReaction]
+    isDeleted:    false,
+    isPinned:     false
+)
+```
+
+### BKAttachment
+
+```swift
+.image(URL)
+.video(URL, thumbnail: URL?)
+.document(URL, filename: String)
+.audio(URL, duration: Int)            // duration in seconds
+.location(URL, latitude: Double, longitude: Double, address: String?)
+```
+
+### BKReaction
+
+```swift
+BKReaction(
+    emoji: "👍",
+    count: 3,
+    byMe:  true    // true = current user reacted; tap again to un-react
+)
+```
+
+### BKReadReceipt
+
+| Case | Display |
+|------|---------|
+| `.sent` | Single grey tick |
+| `.delivered` | Double grey tick |
+| `.read` | Double blue tick |
+
+### BKChatInfo
+
+```swift
+BKChatInfo(
+    title:    "Design Team",
+    subtitle: "12 members",    // shown below title in nav bar
+    avatar:   .url(groupImageURL),
+    isGroup:  true
+)
+```
+
 ### BKPinnedEntry
 
 ```swift
@@ -519,10 +882,11 @@ BKPinnedEntry(
 
 ## Sample Data
 
+### Conversation list
+
 `BKSampleData` uses a single `Record` table as the source of truth. All three derived arrays (`contacts`, `conversations`, `pinnedEntries`) are computed from it — edit in one place only.
 
 ```swift
-// Use built-in sample data in your delegate during development
 func conversations(for filter: BKConversationFilter) -> [BKConversation] {
     BKSampleData.conversations
 }
@@ -548,6 +912,30 @@ Record(id: "jen", name: "Jen", avatarURL: "https://...", isOnline: true,
        lastMessage: "Running late", lastMessageTime: -600,
        isPinnedEntry: true, pinnedStatus: .text("Running late"))
 ```
+
+### Chat screen
+
+`BKChatSampleData` provides ready-made participants and messages for previews:
+
+```swift
+// In your SwiftUI preview:
+BKChatView(viewModel: BKChatViewModel(
+    chatInfo:    BKChatSampleData.groupChatInfo,
+    currentUser: BKChatSampleData.me,
+    messages:    BKChatSampleData.messages
+))
+```
+
+Available sample objects:
+
+| Symbol | Type | Description |
+|--------|------|-------------|
+| `BKChatSampleData.me` | `BKContact` | The logged-in demo user |
+| `BKChatSampleData.leia` | `BKContact` | A sample remote contact |
+| `BKChatSampleData.groupChatInfo` | `BKChatInfo` | A sample group chat header |
+| `BKChatSampleData.messages` | `[BKMessage]` | Three sample messages (image, text, reply) |
+
+> ⚠️ `BKChatSampleData` is for **previews and demos only**. In production always pass real data via `BKChatViewModel(chatInfo:currentUser:messages:)`.
 
 ---
 
