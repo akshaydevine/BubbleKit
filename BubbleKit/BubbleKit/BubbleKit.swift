@@ -18,16 +18,18 @@ public enum BubbleKit {
 
     /// Create a ready-to-present conversation list view.
     /// - Parameters:
-    ///   - title:             Navigation bar title (default "Messages")
-    ///   - theme:             Visual theme (default matches Figma spec)
-    ///   - pinnedDisplayMode: `.horizontalScroll` (original) or `.grid` (3-col × 3-row)
-    ///   - delegate:          Single object conforming to `BKFullDelegate`
+    ///   - title:               Navigation bar title (default "Messages")
+    ///   - theme:               Visual theme (default matches Figma spec)
+    ///   - pinnedDisplayMode:   `.horizontalScroll` (original) or `.grid` (3-col × 3-row)
+    ///   - toolbarVisibility:   Controls which built-in toolbar buttons are shown. Default shows all.
+    ///   - delegate:            Single object conforming to `BKFullDelegate`
     public static func makeConversationList<D: BKFullDelegate>(
-        title:             String              = "Messages",
-        theme:             BubbleKitTheme      = .default,
-        pinnedDisplayMode: BKPinnedDisplayMode = .horizontalScroll,
-        bottomInset:       CGFloat             = 0,             // ✅ new
-        delegate:          D,
+        title:               String              = "Messages",
+        theme:               BubbleKitTheme      = .default,
+        pinnedDisplayMode:   BKPinnedDisplayMode = .horizontalScroll,
+        toolbarVisibility:   BKToolbarVisibility = .init(showEditButton: true , showGroupsButton: true, showComposeButton: false, showSearchBar: false),
+        bottomInset:         CGFloat             = 0,
+        delegate:            D,
         onChatNavigationChanged: ((Bool) -> Void)? = nil
     ) -> some View {
         BKConversationListView(
@@ -37,7 +39,8 @@ public enum BubbleKit {
             eventDelegate:           delegate,
             uiDelegate:              delegate,
             pinnedDisplayMode:       pinnedDisplayMode,
-            bottomInset:             bottomInset,               // ✅ pass through
+            toolbarVisibility:       toolbarVisibility,
+            bottomInset:             bottomInset,
             onChatNavigationChanged: onChatNavigationChanged
         )
     }

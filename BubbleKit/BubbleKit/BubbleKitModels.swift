@@ -192,6 +192,46 @@ public struct BKEditAction: Identifiable {
     ]
 }
 
+// MARK: - Toolbar Visibility
+
+/// Controls which built-in toolbar buttons are shown in the conversation list.
+/// Set any property to `false` to hide that button entirely.
+///
+/// Usage:
+/// ```swift
+/// BubbleKit.makeConversationList(
+///     toolbarVisibility: BKToolbarVisibility(showEditButton: false, showGroupsButton: false),
+///     delegate: myDelegate
+/// )
+/// ```
+public struct BKToolbarVisibility {
+    /// The "Edit" button on the leading (left) side of the nav bar. Default: `true`
+    public var showEditButton:    Bool
+    /// The group/contacts icon button on the trailing (right) side. Default: `true`
+    public var showGroupsButton:  Bool
+    /// The compose (square.and.pencil) icon button on the trailing (right) side. Default: `true`
+    public var showComposeButton: Bool
+    /// The search bar below the navigation bar. Default: `true`
+    public var showSearchBar:     Bool
+
+    public init(
+        showEditButton:    Bool = true,
+        showGroupsButton:  Bool = true,
+        showComposeButton: Bool = true,
+        showSearchBar:     Bool = true
+    ) {
+        self.showEditButton    = showEditButton
+        self.showGroupsButton  = showGroupsButton
+        self.showComposeButton = showComposeButton
+        self.showSearchBar     = showSearchBar
+    }
+
+    /// Show all built-in UI elements (SDK default).
+    public static let all  = BKToolbarVisibility()
+    /// Hide all built-in toolbar buttons and the search bar.
+    public static let none = BKToolbarVisibility(showEditButton: false, showGroupsButton: false, showComposeButton: false, showSearchBar: false)
+}
+
 // MARK: - Filter
 
 public enum BKConversationFilter: String, CaseIterable, Identifiable {

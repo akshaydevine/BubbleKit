@@ -7,12 +7,14 @@ public struct BKConversationListView: View {
     @StateObject private var viewModel = BKConversationListViewModel()
     @State private var showCompose: Bool = false
 
-    private let theme:             BubbleKitTheme
-    private let dataSource:        any BKDataSource
-    private let eventDelegate:     (any BKEventDelegate)?
-    private let uiDelegate:        (any BKUIDelegate)?
-    private let title:             String
-    public  var pinnedDisplayMode: BKPinnedDisplayMode = .horizontalScroll
+    private let theme:               BubbleKitTheme
+    private let dataSource:          any BKDataSource
+    private let eventDelegate:       (any BKEventDelegate)?
+    private let uiDelegate:          (any BKUIDelegate)?
+    private let title:               String
+    public  var pinnedDisplayMode:   BKPinnedDisplayMode = .horizontalScroll
+    /// Controls which built-in toolbar buttons are visible. Default shows all buttons.
+    public  var toolbarVisibility:   BKToolbarVisibility = .all
 
     /// ✅ Extra bottom inset so the last row scrolls above the host app's tab bar.
     /// Pass the tab bar height from the host app. Defaults to 0.
@@ -22,14 +24,15 @@ public struct BKConversationListView: View {
     public var onChatNavigationChanged: ((Bool) -> Void)? = nil
 
     public init(
-        title:             String                 = "Messages",
-        theme:             BubbleKitTheme         = .default,
-        dataSource:        any BKDataSource,
-        eventDelegate:     (any BKEventDelegate)? = nil,
-        uiDelegate:        (any BKUIDelegate)?    = nil,
-        pinnedDisplayMode: BKPinnedDisplayMode    = .horizontalScroll,
-        bottomInset:       CGFloat                = 0,          // ✅ new
-        onChatNavigationChanged: ((Bool) -> Void)? = nil
+        title:               String                 = "Messages",
+        theme:               BubbleKitTheme         = .default,
+        dataSource:          any BKDataSource,
+        eventDelegate:       (any BKEventDelegate)? = nil,
+        uiDelegate:          (any BKUIDelegate)?    = nil,
+        pinnedDisplayMode:   BKPinnedDisplayMode    = .horizontalScroll,
+        toolbarVisibility:   BKToolbarVisibility    = .all,
+        bottomInset:         CGFloat                = 0,
+        onChatNavigationChanged: ((Bool) -> Void)?  = nil
     ) {
         self.title                   = title
         self.theme                   = theme
@@ -37,6 +40,7 @@ public struct BKConversationListView: View {
         self.eventDelegate           = eventDelegate
         self.uiDelegate              = uiDelegate
         self.pinnedDisplayMode       = pinnedDisplayMode
+        self.toolbarVisibility       = toolbarVisibility
         self.bottomInset             = bottomInset
         self.onChatNavigationChanged = onChatNavigationChanged
     }
@@ -47,7 +51,8 @@ public struct BKConversationListView: View {
                 theme.colors.background.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    if !viewModel.isSelectMessagesMode && !viewModel.isEditPinsMode {
+                    if !viewModel.isSelectMessagesMode && !viewModel.isEditPinsMode
+                        && toolbarVisibility.showSearchBar {
                         BKSearchBar(
                             text:        $viewModel.searchQuery,
                             isSearching: $viewModel.isSearching,
@@ -326,6 +331,7 @@ public struct BKConversationListView: View {
 
         ToolbarItem(placement: .navigationBarLeading) {
             if viewModel.isSelectMessagesMode || viewModel.isEditPinsMode {
+                // "Done" always appears when in a modal editing mode — visibility flag doesn't apply here
                 Button("Done") {
                     withAnimation {
                         if viewModel.isSelectMessagesMode { viewModel.exitSelectMessagesMode() }
@@ -336,7 +342,7 @@ public struct BKConversationListView: View {
                 .fontWeight(.semibold)
             } else if let custom = viewModel.uiDelegate?.bubbleKitLeadingBarItems() {
                 custom
-            } else {
+            } else if toolbarVisibility.showEditButton {
                 Button { withAnimation { viewModel.didTapEdit() } } label: {
                     Text("Edit").foregroundColor(theme.colors.appleBlue)
                 }
@@ -349,26 +355,36 @@ public struct BKConversationListView: View {
             } else if let custom = viewModel.uiDelegate?.bubbleKitTrailingBarItems() {
                 custom
             } else {
-                HStack(spacing: 16) {
-                    Button {} label: {
-                        Image(systemName: "person.2.circle").foregroundColor(theme.colors.appleBlue)
-                    }
-                    Button {
-                        showCompose = true
-                        viewModel.didTapCompose()
-                    } label: {
-                        Image(systemName: "square.and.pencil").foregroundColor(theme.colors.appleBlue)
-                    }
-                    .sheet(isPresented: $showCompose) {
-                        if let contacts = viewModel.dataSource?.conversations(for: .all)
-                            .flatMap({ $0.participants }) {
-                            BKComposeView(
-                                contacts: Array(Set(contacts)),
-                                onSend: { recipients, firstMessage in
-                                    showCompose = false
-                                    viewModel.eventDelegate?.bubbleKitDidTapCompose()
+                // Build only the buttons the host app wants
+                let showGroups  = toolbarVisibility.showGroupsButton
+                let showCompose = toolbarVisibility.showComposeButton
+
+                if showGroups || showCompose {
+                    HStack(spacing: 16) {
+                        if showGroups {
+                            Button {} label: {
+                                Image(systemName: "person.2.circle").foregroundColor(theme.colors.appleBlue)
+                            }
+                        }
+                        if showCompose {
+                            Button {
+                                self.showCompose = true
+                                viewModel.didTapCompose()
+                            } label: {
+                                Image(systemName: "square.and.pencil").foregroundColor(theme.colors.appleBlue)
+                            }
+                            .sheet(isPresented: $showCompose) {
+                                if let contacts = viewModel.dataSource?.conversations(for: .all)
+                                    .flatMap({ $0.participants }) {
+                                    BKComposeView(
+                                        contacts: Array(Set(contacts)),
+                                        onSend: { recipients, firstMessage in
+                                            self.showCompose = false
+                                            viewModel.eventDelegate?.bubbleKitDidTapCompose()
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                 }
