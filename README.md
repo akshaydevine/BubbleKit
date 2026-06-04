@@ -379,9 +379,6 @@ chatVM.appendMessage(incoming)
 // Image
 BKMessage(sender: me, attachments: [.image(imageURL)], isOutgoing: true)
 
-// Video with optional thumbnail
-BKMessage(sender: me, attachments: [.video(videoURL, thumbnail: thumbURL)], isOutgoing: true)
-
 // Document (PDF, zip, docx, etc.)
 BKMessage(sender: me, attachments: [.document(fileURL, filename: "report.pdf")], isOutgoing: true)
 
@@ -533,7 +530,7 @@ final class MyChatDelegate: BKChatEventDelegate {
     }
 
     func bkChat(didTapAttachment attachment: BKAttachment, in message: BKMessage) {
-        // Handle document open, video play, location tap, etc.
+        // Handle document open, location tap, etc.
         switch attachment {
         case .document(let url, let filename): openDocument(url, name: filename)
         case .location(let url, _, _, _):      UIApplication.shared.open(url)
@@ -818,7 +815,6 @@ BKMessage(
 
 ```swift
 .image(URL)
-.video(URL, thumbnail: URL?)
 .document(URL, filename: String)
 .audio(URL, duration: Int)            // duration in seconds
 .location(URL, latitude: Double, longitude: Double, address: String?)
