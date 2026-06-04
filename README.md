@@ -2,10 +2,6 @@
 
 A plug-and-play SwiftUI conversation list **and** chat UI kit — pixel-matched to the iOS Messages design. Drop it into any app via Swift Package Manager and get a fully functional chat list with pinned contacts, search, filters, swipe actions, deep customisation hooks, and a complete per-conversation chat screen with attachments, reactions, replies, voice notes, and more.
 
-<p align="center">
-  <img src="assets/image1.png" width="280" alt="BubbleKit Preview" />
-</p>
-
 ---
 
 ## Table of Contents
@@ -101,10 +97,6 @@ struct ContentView: View {
 }
 ```
 
-<p align="center">
-  <img src="assets/image2.png" width="280" alt="Conversation List" />
-</p>
-
 ### Production usage with your own delegate:
 
 ```swift
@@ -175,10 +167,6 @@ func bubbleKit(didChangeFilter filter: BKConversationFilter) {
 
 Swipe actions are automatically hidden when **Select Messages** mode is active.
 
-<p align="center">
-  <img src="assets/image3.png" width="280" alt="Swipe Actions" />
-</p>
-
 Handle events via the event delegate:
 
 ```swift
@@ -245,12 +233,11 @@ func bubbleKit(didSelectEditAction action: BKEditAction) {
 
 ### Select Messages Mode
 
-Activated from the Edit → Select Messages menu item. In this mode:
+Activated from the Edit → Select Messages menu item. In this mode a **checkmark circle** slides in from the left of each row, tapping toggles selection, and a bottom toolbar provides **Select All** and **Delete** actions.
 
-- A **checkmark circle** slides in from the left of each row
-- Tapping a row toggles its selection (no navigation)
-- Swipe actions are disabled
-- A bottom toolbar appears with two buttons:
+<p align="center">
+  <img src="assets/image4.png" width="300" alt="Select Messages Mode" />
+</p>
 
 | Button | Behaviour |
 |--------|-----------|
@@ -266,7 +253,7 @@ Activated from the Edit → Select Messages menu item. In this mode:
 
 ### Display Modes
 
-Pass `pinnedDisplayMode` to `makeConversationList`:
+BubbleKit supports two pinned contact layouts. Pass `pinnedDisplayMode` to `makeConversationList`:
 
 ```swift
 // Horizontal scroll strip (default — original iOS Messages style)
@@ -282,8 +269,11 @@ BubbleKit.makeConversationList(pinnedDisplayMode: .grid, delegate: delegate)
 | `.grid` | 9 per page | Paginates horizontally |
 
 <p align="center">
-  <img src="assets/image4.png" width="280" alt="Pinned Contacts — Horizontal Scroll vs Grid" />
+  <img src="assets/image1.png" width="300" alt="Pinned Contacts — Grid Display Mode" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/image5.png" width="300" alt="Pinned Contacts — Horizontal Scroll Display Mode" />
 </p>
+<p align="center"><em>Left: Grid mode &nbsp;·&nbsp; Right: Horizontal scroll mode</em></p>
 
 ### Pin Status Content
 
@@ -360,10 +350,6 @@ NavigationStack {
 }
 ```
 
-<p align="center">
-  <img src="assets/image5.png" width="280" alt="Chat Screen" />
-</p>
-
 > **Important:** `currentUser` is the logged-in user. Every message the user sends is stamped with this contact as the sender and rendered as an outgoing (right-aligned, blue) bubble.
 
 ### Loading & Appending Messages
@@ -421,6 +407,13 @@ The **`+` button** in the input bar opens a Telegram-style attachment panel with
 | 🔵 File | Document picker | `UIDocumentPickerViewController` |
 | 🔴 Location | Current GPS location | `CLLocationManager` |
 
+<p align="center">
+  <img src="assets/image2.png" width="300" alt="Chat screen with attachment panel open" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/image3.png" width="300" alt="Chat screen with image attachment mosaic grid" />
+</p>
+<p align="center"><em>Left: Attachment picker panel &nbsp;·&nbsp; Right: Multi-image mosaic layout</em></p>
+
 ### Reactions
 
 Long-pressing any bubble opens a context overlay with a quick-emoji bar (`😂 👍 ❤️ 👎 😮 +`). Tapping an emoji toggles your reaction on the message.
@@ -470,6 +463,12 @@ Long-press any bubble → tap **Delete Message**. The bubble is replaced with a 
 ```swift
 chatVM.deleteMessage(message)
 ```
+
+The long-press context menu also surfaces **Reply**, **Pin to conversation**, and **Delete Message** actions alongside the emoji reaction bar.
+
+<p align="center">
+  <img src="assets/image6.png" width="300" alt="Long-press context menu with reactions and actions" />
+</p>
 
 ### Pin Messages
 
@@ -602,10 +601,6 @@ The same theme flows automatically into `BKChatView` when opened from the conver
 BKChatView(viewModel: chatVM)
     .bubbleKitTheme(.dark)
 ```
-
-<p align="center">
-  <img src="assets/image6.png" width="560" alt="Light and Dark Themes" />
-</p>
 
 ### Custom Theme
 
