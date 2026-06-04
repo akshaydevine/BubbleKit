@@ -56,6 +56,9 @@ public struct BKChatView: View {
 
     private let quickEmojis = ["😂", "👍", "❤️", "👎", "😮", "+"]
 
+    // Full emoji picker — use a simple wrapper so sheet(item:) works reliably
+    @State private var emojiPickerTarget: EmojiPickerTarget? = nil
+
     public init(viewModel: BKChatViewModel) {
         self.viewModel = viewModel
     }
@@ -156,6 +159,16 @@ public struct BKChatView: View {
         .sheet(isPresented: $showContactPicker) { contactSheetView() }
         .sheet(isPresented: $showMusicPicker)   { musicPickerView()  }
         .sheet(isPresented: $showPaySheet)      { paySheetView()     }
+        // ── Full emoji picker sheet ───────────────────────────────────
+        .sheet(item: $emojiPickerTarget) { target in
+            EmojiPickerSheet { selectedEmoji in
+                withAnimation { viewModel.react(emoji: selectedEmoji, to: target.message) }
+                emojiPickerTarget = nil
+                viewModel.dismissContext()
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         // ── Attachment panel ──────────────────────────────────────────
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if showAttachPanel {
@@ -739,22 +752,22 @@ public struct BKChatView: View {
                         sendCurrentLocation()
                     }
                 }
-                attachGridItem(icon: "mic.fill", label: "Audio", color: Color(hex: "#AF52DE")) {
-                    showAttachPanel = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { startRecording() }
-                }
-                attachGridItem(icon: "person.2.fill", label: "Contact", color: Color(hex: "#5AC8FA")) {
-                    showAttachPanel = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showContactPicker = true }
-                }
-                attachGridItem(icon: "music.note", label: "Music", color: Color(hex: "#FF2D55")) {
-                    showAttachPanel = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showMusicPicker = true }
-                }
-                attachGridItem(icon: "bitcoinsign.circle.fill", label: "Pay", color: Color(hex: "#30B0C7")) {
-                    showAttachPanel = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showPaySheet = true }
-                }
+//                attachGridItem(icon: "mic.fill", label: "Audio", color: Color(hex: "#AF52DE")) {
+//                    showAttachPanel = false
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { startRecording() }
+//                }
+//                attachGridItem(icon: "person.2.fill", label: "Contact", color: Color(hex: "#5AC8FA")) {
+//                    showAttachPanel = false
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showContactPicker = true }
+//                }
+//                attachGridItem(icon: "music.note", label: "Music", color: Color(hex: "#FF2D55")) {
+//                    showAttachPanel = false
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showMusicPicker = true }
+//                }
+//                attachGridItem(icon: "bitcoinsign.circle.fill", label: "Pay", color: Color(hex: "#30B0C7")) {
+//                    showAttachPanel = false
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { showPaySheet = true }
+//                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
@@ -978,22 +991,30 @@ public struct BKChatView: View {
     // MARK: - Context Menu Overlay
 
     private func contextOverlay(for message: BKMessage) -> some View {
-        ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.25)) { viewModel.dismissContext() }
-                }
+        // Use GeometryReader so we can size things explicitly — no ScrollView
+        // sitting over the backdrop (that was the dismiss bug).
+        GeometryReader { geo in
+            ZStack {
+                // ── 1. Dimmed backdrop — full screen, always on top of message list ──
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.25)) { viewModel.dismissContext() }
+                    }
 
-            ScrollView {
+                // ── 2. Content column ────────────────────────────────────────────────
                 VStack(spacing: 12) {
-                    Spacer(minLength: 60)
+                    Spacer(minLength: 0)
 
+                    // Quick-emoji pill
                     HStack(spacing: 0) {
                         ForEach(quickEmojis, id: \.self) { emoji in
                             Button {
-                                if emoji == "+" { /* full picker */ }
-                                else { withAnimation { viewModel.react(emoji: emoji, to: message) } }
+                                if emoji == "+" {
+                                    emojiPickerTarget = EmojiPickerTarget(message: message)
+                                } else {
+                                    withAnimation { viewModel.react(emoji: emoji, to: message) }
+                                }
                             } label: {
                                 ZStack {
                                     Text(emoji == "+" ? "" : emoji)
@@ -1014,6 +1035,7 @@ public struct BKChatView: View {
                     .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity, alignment: message.isOutgoing ? .trailing : .leading)
 
+                    // Message bubble preview (non-interactive)
                     BKMessageBubbleView(
                         message:    message,
                         showAvatar: true,
@@ -1022,16 +1044,12 @@ public struct BKChatView: View {
                     .scaleEffect(1.02)
                     .allowsHitTesting(false)
 
+                    // Action menu
                     VStack(spacing: 0) {
                         actionRow(icon: "arrowshape.turn.up.left", label: "Reply", color: .primary) {
                             viewModel.reply(to: message)
                         }
                         Divider().padding(.leading, 52)
-
-//                        actionRow(icon: "bubble.left.and.bubble.right", label: "Thread Reply", color: .primary) {
-//                            viewModel.threadReply(to: message)
-//                        }
-//                        Divider().padding(.leading, 52)
 
                         actionRow(
                             icon:  message.isPinned ? "pin.slash" : "pin",
@@ -1057,8 +1075,11 @@ public struct BKChatView: View {
                     .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 4)
                     .padding(.horizontal, 16)
 
-                    Spacer(minLength: 30)
+                    Spacer(minLength: 40)
                 }
+                // The VStack must NOT fill the whole screen — only its content area
+                // is interactive. Taps outside it fall through to the backdrop above.
+                .allowsHitTesting(true)
             }
         }
     }
@@ -1426,6 +1447,98 @@ extension BKImagePageVC: UIScrollViewDelegate {
 }
 
 // MARK: - Previews
+
+// MARK: - Emoji Picker Target (Identifiable wrapper for sheet(item:))
+
+struct EmojiPickerTarget: Identifiable {
+    let id = UUID()
+    let message: BKMessage
+}
+
+// MARK: - Emoji Picker Sheet
+
+struct EmojiPickerSheet: View {
+    let onSelect: (String) -> Void
+
+    // All emoji categories displayed in a grid
+    private let emojiCategories: [(String, [String])] = [
+        ("Smileys", ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","🥸","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖"]),
+        ("Gestures", ["👋","🤚","🖐","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦵","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁","👅","👄","🫦"]),
+        ("Hearts & Symbols", ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","❤️‍🩹","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☯️","🕉️","✡️","🔯","🪯","☦️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","🉑","☢️","☣️","📴","📳","🈶","🈚","🈸","🈺","🈷️","✴️","🆚","💮","🉐","㊙️","㊗️","🈴","🈵","🈹","🈲","🅰️","🅱️","🆎","🆑","🅾️","🆘","⛔","📛","🚫","💯","💢","♨️","🚷","🚯","🚳","🚱","🔞","📵","🔕","🔇","🔈","🔉","🔊","📣","📢","💬","💭","🗯"]),
+        ("Animals", ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐻‍❄️","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🐔","🐧","🐦","🐤","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪲","🦟","🦗","🕷","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🦭","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦛","🦏","🐪","🐫","🦒","🦘","🦬","🐃","🐂","🐄","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐕‍🦺","🐈","🐈‍⬛","🪶","🐓","🦃","🦤","🦚","🦜","🦢","🦩","🕊","🐇","🦝","🦨","🦡","🦫","🦦","🦥","🐁","🐀","🐿","🦔"]),
+        ("Food", ["🍎","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🫐","🍈","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🍆","🥑","🥦","🥬","🥒","🌶","🫑","🧄","🧅","🥔","🍠","🥐","🥯","🍞","🥖","🥨","🧀","🥚","🍳","🧈","🥞","🧇","🥓","🥩","🍗","🍖","🌭","🍔","🍟","🍕","🫓","🥙","🧆","🌮","🌯","🫔","🥗","🥘","🫕","🥫","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🦪","🍤","🍙","🍚","🍘","🍥","🥮","🍢","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍿","🍩","🍪","🌰","🥜","🍯","🧃","🥤","🧋","☕","🍵","🧉","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🍾"]),
+        ("Activities", ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🏹","🎣","🤿","🥊","🥋","🎽","🛹","🛼","🛷","⛸","🥌","🎿","⛷","🏂","🪂","🏋️","🤼","🤸","⛹️","🤺","🏇","🧘","🏄","🏊","🚴","🏆","🥇","🥈","🥉","🏅","🎖","🏵","🎗","🎫","🎟","🎪","🤹","🎭","🩰","🎨","🎬","🎤","🎧","🎼","🎵","🎶","🎹","🥁","🪘","🎷","🎺","🎸","🪕","🎻","🎲","♟","🎯","🎳","🎮","🎰","🧩"]),
+        ("Travel", ["🚗","🚕","🚙","🚌","🚎","🏎","🚓","🚑","🚒","🚐","🛻","🚚","🚛","🚜","🏍","🛵","🛺","🚲","🛴","🛹","🛼","🚏","🛣","🛤","⛽","🚨","🚥","🚦","🛑","🚧","⚓","🛟","⛵","🚤","🛥","🛳","⛴","🚢","✈️","🛩","🛫","🛬","🪂","💺","🚁","🚟","🚠","🚡","🛰","🚀","🛸","🌍","🌎","🌏","🌐","🗺","🧭","🏔","⛰","🌋","🗻","🏕","🏖","🏜","🏝","🏞","🏟","🏛","🏗","🧱","🪨","🪵","🛖","🏘","🏚","🏠","🏡","🏢","🏣","🏤","🏥","🏦","🏨","🏩","🏪","🏫","🏬","🏭","🏯","🏰","💒","🗼","🗽"]),
+    ]
+
+    @State private var searchText: String = ""
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 8)
+
+    private var filteredEmojis: [(String, [String])] {
+        guard !searchText.isEmpty else { return emojiCategories }
+        let q = searchText
+        let all = emojiCategories.flatMap(\.1).filter { $0.contains(q) }
+        return all.isEmpty ? [] : [("Results", all)]
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search bar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search emoji", text: $searchText)
+                    .font(.system(size: 16))
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            // Emoji grid
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12, pinnedViews: .sectionHeaders) {
+                    ForEach(filteredEmojis, id: \.0) { category, emojis in
+                        Section {
+                            LazyVGrid(columns: columns, spacing: 4) {
+                                ForEach(emojis, id: \.self) { emoji in
+                                    Button {
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        onSelect(emoji)
+                                    } label: {
+                                        Text(emoji)
+                                            .font(.system(size: 30))
+                                            .frame(width: 42, height: 42)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        } header: {
+                            Text(category)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.top, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.systemBackground))
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+}
 
 #Preview("Chat") {
     NavigationView {

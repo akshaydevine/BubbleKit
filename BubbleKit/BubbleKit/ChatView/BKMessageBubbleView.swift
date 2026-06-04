@@ -435,51 +435,57 @@ public struct BKMessageBubbleView: View {
     // MARK: - Reply Quote
 
     private func replyQuote(_ reply: BKMessageReply) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(message.isOutgoing ? Color.white.opacity(0.8) : theme.colors.appleBlue)
-                .frame(width: 3, height: 36)
+        Button {
+            // Scroll to the original message and flash-highlight it
+            viewModel.scrollToAndHighlight(messageID: reply.id)
+        } label: {
+            HStack(alignment: .center, spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(message.isOutgoing ? Color.white.opacity(0.8) : theme.colors.appleBlue)
+                    .frame(width: 3, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(reply.senderName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(message.isOutgoing ? .white : theme.colors.appleBlue)
-                    .lineLimit(1)
-
-                if let text = reply.text, !text.isEmpty {
-                    Text(text)
-                        .font(.system(size: 12))
-                        .foregroundColor(message.isOutgoing ? .white.opacity(0.8) : theme.colors.appleGrey)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reply.senderName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(message.isOutgoing ? .white : theme.colors.appleBlue)
                         .lineLimit(1)
-                } else if reply.imageURL != nil {
-                    Label("Photo", systemImage: "photo")
-                        .font(.system(size: 12))
-                        .foregroundColor(message.isOutgoing ? .white.opacity(0.7) : theme.colors.appleGrey)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let url = reply.imageURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    case .failure:          Image(systemName: "photo").foregroundColor(.gray)
-                    default:               Color.gray.opacity(0.2)
+                    if let text = reply.text, !text.isEmpty {
+                        Text(text)
+                            .font(.system(size: 12))
+                            .foregroundColor(message.isOutgoing ? .white.opacity(0.8) : theme.colors.appleGrey)
+                            .lineLimit(1)
+                    } else if reply.imageURL != nil {
+                        Label("Photo", systemImage: "photo")
+                            .font(.system(size: 12))
+                            .foregroundColor(message.isOutgoing ? .white.opacity(0.7) : theme.colors.appleGrey)
                     }
                 }
-                .frame(width: 36, height: 36)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .fixedSize()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let url = reply.imageURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img): img.resizable().scaledToFill()
+                        case .failure:          Image(systemName: "photo").foregroundColor(.gray)
+                        default:               Color.gray.opacity(0.2)
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .fixedSize()
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity)
+            .background(message.isOutgoing ? Color.white.opacity(0.15) : theme.colors.appleBlue.opacity(0.08))
+            .cornerRadius(10)
+            .padding(.horizontal, 4)
+            .padding(.top, 6)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
-        .background(message.isOutgoing ? Color.white.opacity(0.15) : theme.colors.appleBlue.opacity(0.08))
-        .cornerRadius(10)
-        .padding(.horizontal, 4)
-        .padding(.top, 6)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Attachment Grid (images only)
@@ -714,4 +720,3 @@ extension View {
 }
 
 // MARK: - Location Bubble
-

@@ -72,15 +72,33 @@ public final class BKChatViewModel: ObservableObject {
         self.sections    = Self.group(messages)
     }
 
+    // Token incremented each call — cancels any in-flight highlight from a previous tap
+    private var highlightToken: Int = 0
+
     public func scrollToAndHighlight(messageID: String) {
-        scrollToID = messageID
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                self.highlightedMessageID = messageID
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                withAnimation(.easeOut(duration: 0.4)) {
-                    self.highlightedMessageID = nil
+        // ── Fix 1: always reset to nil first so onChange fires even for the same ID ──
+        highlightedMessageID = nil
+        scrollToID = nil
+
+        highlightToken += 1
+        let token = highlightToken
+
+        // Small tick so the nil publish above is committed before we set the new ID
+        DispatchQueue.main.async {
+            // ── Fix 2: set scrollToID after nil tick so onChange always fires ─────
+            self.scrollToID = messageID
+
+            // ── Fix 3: longer delay so scroll animation finishes first ────────────
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                guard self.highlightToken == token else { return }   // stale tap — ignore
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    self.highlightedMessageID = messageID
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                    guard self.highlightToken == token else { return }
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        self.highlightedMessageID = nil
+                    }
                 }
             }
         }
