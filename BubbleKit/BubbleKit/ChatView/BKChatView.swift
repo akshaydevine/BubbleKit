@@ -1248,21 +1248,63 @@ struct ImageGalleryView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        Task {
-                            let url = urls[pageIndex]
-                            if let data = try? Data(contentsOf: url),
-                               let img  = UIImage(data: data) {
-                                let av = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-                                UIApplication.shared.connectedScenes
-                                    .compactMap { $0 as? UIWindowScene }
-                                    .first?.windows.first?
-                                    .rootViewController?.present(av, animated: true)
-                            }
-                        }
+                        shareImage(url: urls[pageIndex])
                     } label: {
-                        Image(systemName: "square.and.arrow.up").foregroundColor(.white)
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.white)
                     }
                 }
+            }
+        }
+        
+    }
+    private func shareImage(url: URL) {
+        // Load image on background thread first
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Handle both local file URLs and remote URLs
+            let itemToShare: Any
+
+            if url.isFileURL {
+                // Local file — share the URL directly, no need to load data
+                itemToShare = url
+            } else {
+                // Remote URL — download data first
+                guard let data = try? Data(contentsOf: url),
+                      let image = UIImage(data: data) else { return }
+                itemToShare = image
+            }
+
+            DispatchQueue.main.async {
+                let av = UIActivityViewController(
+                    activityItems: [itemToShare],
+                    applicationActivities: nil
+                )
+
+                // Required for iPad — prevents crash
+                av.popoverPresentationController?.sourceView =
+                    UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows.first
+
+                av.popoverPresentationController?.sourceRect =
+                    CGRect(x: UIScreen.main.bounds.midX, y: 100, width: 0, height: 0)
+
+                av.popoverPresentationController?.permittedArrowDirections = .up
+
+                // Find the topmost presented VC to present on
+                guard let windowScene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene }).first,
+                      let root = windowScene.windows.first?.rootViewController else { return }
+
+                var topVC = root
+                while let presented = topVC.presentedViewController {
+                    topVC = presented
+                }
+
+                // Don't present if something else is already presenting
+                guard !topVC.isBeingPresented else { return }
+
+                topVC.present(av, animated: true)
             }
         }
     }
